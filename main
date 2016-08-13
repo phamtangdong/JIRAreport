@@ -1,0 +1,156 @@
+from fysom import Fysom
+
+class Dialogue:
+    def __init__(self, dialogueName,slave):
+        self.dialogueName = dialogueName
+        self.slave = slave
+    def __init__(self, dialogueName, slave ,remote):
+        self.dialogueName = dialogueName
+        self.slave = slave
+        self.remote = remote
+
+    def __init__(self, dialogueName, slave, remote, parameter):
+        self.dialogueName = dialogueName
+        self.slave = slave
+        self.remote = remote
+        self.parameter = parameter
+
+    def ListSupportedNextDialogues(self):
+        return True
+    
+    def can(self):
+        return True
+
+class EndPoint:
+    def oncall(self,e):
+        print('validate_oncall' )
+        TestCase.append('<Dialogue>ValidateRemoteCall(' + self.userConfig + ')</Dialogue>')
+
+    def onbe_called(self,e):
+        print('validate_onbe_called')
+        TestCase.append('<Dialogue>ValidateIncomingCall('+self.userConfig+')</Dialogue>')
+
+    def onanswer_call(self,e):
+        #print('answer')
+        TestCase.append('<Dialogue>ValidateAudioCallEstablished('+self.userConfig+')</Dialogue>')
+
+    def oncall_accepted(self,e):
+        #print('answer')
+        TestCase.append('<Dialogue>ValidateAudioCallEstablished('+self.userConfig+')</Dialogue>')
+
+    def ongreen(self,e):
+        print('green')
+
+    def oncall_ended(self,e):
+        print('oncall_ended')
+
+    def onENDED_CALL(self,e):
+        print('onENDED_CALL')
+        self.activeCallState.call_ended()
+
+    def onINCOMING_CALL(self,e):
+        print('Enter state!')
+
+    def onIDLE(self,e):
+        print("Line IDLE")
+
+    def onREMOTE_RINGING(self,e):
+        print('Enter state!REMOTE_RINGING')
+
+    @property
+    def GetCurrentActiveCallState(self):
+        return self.LAList[self.activeLA]["callState"].current
+
+    @property
+    def ActiveCallState(self):
+        return self.LAList[self.activeLA]["callState"]
+
+    def __init__(self,userConfig):
+        #define the state machine, DO NOT MOVE IT as it use self.
+        x = ({'initial': {'state': 'IDLE', 'event': 'init', 'defer': True},
+              'events': [
+                  {'name': 'call', 'src': 'IDLE', 'dst': 'REMOTE_RINGING'},
+                  {'name': 'be_called', 'src': 'IDLE', 'dst': 'INCOMING_CALL'},
+                  {'name': 'answer_call', 'src': 'INCOMING_CALL', 'dst': 'ESTABLISHED_CALL'},
+                  {'name': 'end_call', 'src': ['ESTABLISHED_CALL', 'INCOMING_CALL'],
+                   'dst': 'ENDED_CALL'},
+                  {'name': 'call_accepted', 'src': 'REMOTE_RINGING', 'dst': 'ESTABLISHED_CALL'},
+                  {'name': 'ignore_call', 'src': 'INCOMING_CALL', 'dst': 'INCOMING_CALL'},
+                  {'name': 'call_ended', 'src': 'ENDED_CALL', 'dst': 'IDLE'}],
+              'callbacks': {
+                  'oncall': self.oncall,
+                  'onbe_called': self.onbe_called,
+                  'onanswer_call': self.onanswer_call,
+                  'onignore_call': self.ongreen,
+                  'oncall_ended': self.oncall_ended,
+                  'oncall_accepted': self.oncall_accepted,
+
+                  'onENDED_CALL': self.onENDED_CALL,
+                  'onINCOMING_CALL': self.onINCOMING_CALL,
+                  'onIDLE': self.onIDLE,
+                  'onREMOTE_RINGING': self.onREMOTE_RINGING
+              }})
+
+
+        self.userConfig = userConfig
+
+        #need to define number of Line Appearance.
+
+        self.LAList = [{"state":"", "remoteParty":"", "callState" : Fysom(x)},{"state":"", "remoteParty":"", "callState" : Fysom(x)},{"state":"", "remoteParty":"", "callState" : Fysom(x)},{"state":"", "remoteParty":"", "callState" : Fysom(x)},{"state":"", "remoteParty":"", "callState" : Fysom(x)},{"state":"", "remoteParty":"", "callState" : Fysom(x)}]
+        self.activeLA = 0
+
+    ##Define Test Case Steps
+
+    def MakeOutGoingCall(self,B):
+        TestCase.append('<Dialogue>MakeOutGoingCall(' + A.userConfig + ',' + B.userConfig + ')</Dialogue>')
+
+        #Execute State event
+        self.ActiveCallState.call()
+        B.ActiveCallState.be_called()
+
+        # update activeLA and status
+        if (self.LAList[self.activeLA]['state'] != ""):
+            self.activeLA = self.activeLA + 1
+        self.LAList[self.activeLA]['state'] = 'busy'
+        self.LAList[self.activeLA]['remoteParty'] = B
+
+        # update activeLA and status
+        if (B.LAList[B.activeLA]['state'] != ""):
+            B.activeLA = B.activeLA + 1
+        B.LAList[B.activeLA]['state'] = 'busy'
+        B.LAList[B.activeLA]['remoteParty'] = self
+
+        # add callmap --need some check!!!
+        callMap.append({"callType": "P2P", "participants": [self, B], "status": "RINGING"})
+
+    def AnswerCall(self):
+        TestCase.append('<Dialogue>AcceptCall(' + self.userConfig + ')</Dialogue>')
+        self.ActiveCallState.answer_call()
+        self.LAList[self.activeLA]['remoteParty'].ActiveCallState.call_accepted()
+        callMap.append({"callType": "P2P", "participants": [self.LAList[self.activeLA]['remoteParty'], self], "status": "Established"})
+
+TestCase = []
+
+def ListNextSupportedFunction(A,B,C):
+    print(A.GetCurrentActiveCallState)
+    print(B.GetCurrentActiveCallState)
+    print(C.GetCurrentActiveCallState)
+    print(callMap)
+
+if __name__ == "__main__":
+    A = EndPoint("A")
+    #print(A.userConfig)
+    B = EndPoint("B")
+    C = EndPoint("C")
+    callMap = []
+    A.ActiveCallState.init()
+    #print (A.ActiveCallState.current)
+    B.ActiveCallState.init()
+    C.ActiveCallState.init()
+    #print(B.ActiveCallState.current)
+    #ListNextSupportedFunction(A, B, C)
+    #MakeOutGoingCall(A, B)
+    A.MakeOutGoingCall(B)
+    B.AnswerCall()
+    ListNextSupportedFunction(A, B, C)
+    print (TestCase)
